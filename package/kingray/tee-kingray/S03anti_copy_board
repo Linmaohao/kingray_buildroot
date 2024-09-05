@@ -1,0 +1,62 @@
+#!/bin/sh
+
+DAEMON="anti_copy_board"
+PIDFILE="/var/run/$DAEMON.pid"
+DAEMON_TEE="tee-supplicant"
+PIDFILE_TEE="/var/run/$DAEMON_TEE.pid"
+
+start() {
+	printf 'Starting %s: ' "$DAEMON_TEE"
+	start-stop-daemon -b -m -S -q -p "$PIDFILE_TEE" -x "/bin/$DAEMON_TEE"
+	status=$?
+	if [ "$status" -eq 0 ]; then
+		echo "OK"
+	else
+		echo "FAIL"
+		return "$status"
+	fi
+
+	printf 'Starting %s: ' "$DAEMON"
+	start-stop-daemon -m -S -q -p "$PIDFILE" -x "/bin/$DAEMON"
+	status=$?
+	if [ "$status" -eq 0 ]; then
+		echo "OK"
+	else
+		echo "FAIL"
+		reboot &
+	fi
+	rm -f "$PIDFILE"
+	stop
+
+	return "$status"
+}
+
+stop() {
+	printf 'Stopping %s: ' "$DAEMON_TEE"
+	start-stop-daemon -K -q -p "$PIDFILE_TEE"
+	status=$?
+	if [ "$status" -eq 0 ]; then
+		rm -f "$PIDFILE_TEE"
+		echo "OK"
+	else
+		echo "FAIL"
+	fi
+	return "$status"
+}
+
+restart() {
+	stop
+	sleep 1
+	start
+}
+
+case "$1" in
+	start|stop|restart)
+		"$1";;
+	reload)
+		# Restart, since there is no true "reload" feature.
+		restart;;
+	*)
+		echo "Usage: $0 {start|stop|restart|reload}"
+		exit 1
+esac

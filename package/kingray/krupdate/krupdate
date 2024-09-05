@@ -1,0 +1,102 @@
+#!/bin/sh
+# kingray internel update script.
+
+UPDATE_TOLL="/usr/bin/updateEngine"
+UPDATE_IMG="/userdata/update/update.img"
+SIGN_KEY="/etc/update/public_key.pem"
+
+printf_help() {
+    echo "Usage: $(basename $0) <command> [options]"
+    echo ""
+    echo "Commands:"
+    echo "  factory          Perform a factory reset."
+    echo "  clean  [PATH]    Clean specified path, default: $(dirname $UPDATE_IMG)"
+    echo "  verify [PATH]    Verify origin ota image, default: $UPDATE_IMG"
+    echo "  update [PATH]    Update the system with signed image at the specified path."
+    echo "                   Support url, default: $UPDATE_IMG"
+    echo "  -h, --help       Display this help message."
+    echo ""
+    echo "Examples:"
+    echo "  $(basename $0) factory"
+    echo "  $(basename $0) update"
+    echo "  $(basename $0) update '/userdata/update.img'"
+    echo "  $(basename $0) update 'http://172.16.1.1:8080/recovery/update.img'(not support now)"
+}
+
+clean() {
+    CLEAN_DIR=$(dirname $UPDATE_IMG)
+    if [ -n "$1" ]; then
+        CLEAN_DIR="$1"
+    fi
+    rm -f $CLEAN_DIR/update_sig $CLEAN_DIR/update.img.sha256
+}
+
+verify() {
+    VERIFY_IMG=$UPDATE_IMG
+    if [ -n "$1" ]; then
+        VERIFY_IMG="$1"
+    fi
+    if [ ! -e "$VERIFY_IMG" ]; then
+        echo "Image not exist"
+        exit 1
+    fi
+    if [ $# -ne 2 ]; then
+        clean $(dirname $VERIFY_IMG)
+    fi
+
+    SIGN_FILE=$(dirname $VERIFY_IMG)/update_sig
+    SHA_FILE=$(dirname $VERIFY_IMG)/update.img.sha256
+
+    if [ ! -e "$SIGN_FILE" ]; then
+        dd if=$VERIFY_IMG of=$SIGN_FILE bs=1 count=256 skip=$(($(stat -c%s $VERIFY_IMG) - 256))
+        truncate -s -256 $VERIFY_IMG
+    fi
+    sha256sum $VERIFY_IMG | awk '{print $1}' > $SHA_FILE
+    openssl dgst -sha256 -verify $SIGN_KEY -signature $SIGN_FILE $SHA_FILE
+
+    if [ "$?" -ne "0" ]; then
+        echo "This ota image is invalid, verify failed, clean..."
+        rm -f $SHA_FILE $SIGN_FILE $UPDATE_IMG
+        exit 0
+    else
+        echo "Verify ok."
+    fi
+}
+
+
+if [ $# -ne 1 ] && [ $# -ne 2 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    printf_help
+    exit 0
+fi
+
+case "$1" in
+    factory)
+        echo "Starting factory reset..."
+        $UPDATE_TOLL --misc=wipe_userdata --reboot
+        ;;
+    clean)
+        echo "Starting clean..."
+        clean $2
+        ;;
+    verify)
+        echo "Starting verify ..."
+        verify $2
+        ;;
+    update)
+        echo "Starting update..."
+        IMAGE_URL=$UPDATE_IMG
+        if [ -n "$2" ]; then
+            IMAGE_URL="$2"
+        fi
+
+        # verify again before update and clean, ensure the integrity of the next upgrade
+        verify $IMAGE_URL 1
+        clean $(dirname $IMAGE_URL)
+
+        $UPDATE_TOLL --image_url=$IMAGE_URL --misc=update --savepath=$UPDATE_IMG --reboot &
+        ;;
+    *)
+        printf_help
+        exit 1
+        ;;
+esac

@@ -1,0 +1,26 @@
+config BR2_PACKAGE_TEE_KINGRAY
+	bool "Kingray TEE user App or linux"
+	help
+	  Kingray TEE user App or linux.
+
+if BR2_PACKAGE_TEE_KINGRAY
+
+config BR2_PACKAGE_TEE_KINGRAY_COMPILE_CMD
+	string "compile command"
+	default "6432"
+	help
+	  Kingray tee_kingray compile cammad.
+
+config BR2_PACKAGE_TEE_KINGRAY_TEE_VERSION
+	string "TEE version"
+	default "v2"
+	help
+	  Kingray TEE version.
+
+config BR2_PACKAGE_TEE_KINGRAY_EXTRA_TOOLCHAIN
+	string "Extra toolchain if neccessary"
+	default "None"
+	help
+	  Extra toolchain if neccessary
+
+endif

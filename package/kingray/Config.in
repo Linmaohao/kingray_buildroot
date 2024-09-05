@@ -1,0 +1,13 @@
+config BR2_PACKAGE_KINGRAY
+        bool "Kingray Platform"
+	help
+	  Enable Kingray Platform
+
+if BR2_PACKAGE_KINGRAY
+
+menu "Kingray packages"
+	source "package/kingray/tee-kingray/Config.in"
+	source "package/kingray/krupdate/Config.in"
+endmenu
+
+endif
